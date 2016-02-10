@@ -1,0 +1,185 @@
+<html>
+	<title>My_IRC</title>
+	<head>
+		<meta charset="utf-8">
+		<link rel="stylesheet" type="text/css" href="css/kube.min.css" />
+		<link rel="stylesheet" type="text/css" href="css/main.css" />
+	</head>
+<body id="logged-out">
+	<div id="content">
+		<h3 class="title">Multi Miaou</h3>
+
+		<section id="login">
+			<form id="choixChat" class="forms columnar bgWhite">
+				<fieldset>
+				<ul>
+					<li>
+						<label class="bold">Groupe</label>
+						<select class="chambre" name="chambre">
+							<option value="chatHommesFemmes">Chat hommes/femmes</option>
+							<option value="chatHommes">Chat hommes</option>
+							<option value="chatFemmes">Chat femmes</option>
+							<option value="chatAnimaux">Chat animaux</option>
+						</select>
+					</li>
+					<li>
+						<label class="bold">Pseudo</label>
+						<input type="text" class="username" name="username">
+					</li>
+					<li class="push">
+						<input type="submit" name="enter" value="Entrer" class="btn">
+					</li>
+				</ul>
+				</fieldset>
+			</form>
+		</section>
+		<section id ="cha">
+			<div class="chat" style="display:none;">
+				<h2>Liste des chambres disponible : </h2>
+				<div class="channel">
+				</div>
+				<div class="back bgWhite">
+					<button class="close btn">Quitter</button>
+				</div>
+				<div class="overflowMessages">
+					<table class="messages bordered bgWhite"></table>
+				</div>
+					<form id="send" class="forms columnar bgWhite">
+						<fieldset>
+							<ul>
+								<li>
+									<input type="text" name="message" class="message" value="">
+									<input type="submit" class="bt" name="send" value="envoyer">
+								</li>
+							</ul>
+						</fieldset>
+					</form>
+			</div>
+			<div class="loader bgWhite" style="display: none;">
+				<ul><li></li><li></li><li></li><li></li><li></li><li></li></ul>
+			</div>
+		</section>
+
+	</div>
+	<script type="text/javascript" src="js/jquery.min.js"></script>
+	<script type="text/javascript" src="/socket.io/socket.io.js"></script>
+	<script type="text/javascript">
+	$(function () {
+		// Utils
+		function htmlspecialchars(string) { return $('<span>').text(string).html(); }
+		// Variables jQuery
+		var $chat = $('.chat'),
+			$loader = $('.loader'),
+			$title = $('.title'),
+			$messages = $('.messages', $chat);
+			$message = $('.message', $chat);
+			$channel = $('.channel');
+		// Variables "globales"
+		var socket = io.connect('http://localhost:3000'),
+			username;
+
+		//Fonctions
+		function newMessage(hash) {
+			$('<tr>').html('<td class="username_bold">'+htmlspecialchars(hash.username)+'</td><td class="msg">' + htmlspecialchars(hash.text) + '</td>').appendTo($messages);
+			$messages.find('.noMess').remove();
+			$('.overflowMessages').stop().animate({
+				scrollTop: $messages.height()
+			}, 400);
+		}
+		// On attends qu'il choisisse son chat
+		$('#choixChat').submit(function () {
+			// On récupère le namespace choisit
+			var namespace = $('.chambre', this).val();
+			username = $('.username', this).val() || ('User'+ Math.ceil(Math.random() * 100000));
+			$(this).hide();
+			$loader.show();
+			// on se connecte à ce namespace
+			socket = io.connect('/'+namespace, {
+				"force new connection": true // Juste pour pouvoir bien re-rentrer dans l'evénement "connected"
+			});
+			// Envoie l'évènement que j'ai bien sauvegardé
+			socket.on('connected', function (res) {
+				// On affiche le chat
+				$loader.hide();
+				$chat.show();
+				$title.html(res.title);
+				// Si aucun messages...
+				if (!res.messages.length) {
+					$messages.html('<tr class="noMess"><td>Aucun messages pour le moment, qu\'attendez vous ?</td></tr>');
+				}
+				else {
+					// On affiche le titre personnalisé à ce chat
+					for (var i = 0, l = res.messages.length; i < l; i++) {
+						newMessage(res.messages[i]);
+					}
+				}
+				// Focus sur l'input
+				$message.focus();
+
+
+
+				socket.on('onListRooms', displayRoomList);
+				socket.on('onListUsers', displayListUsers);
+
+			});
+
+			// Pour chaque nouveau message...
+			socket.on('newMessage', newMessage);
+
+			// On previent l'évènement de continuer et de raffrichir la page
+			return false;
+		});
+
+		function displayRoomList (payload) {
+			//console.log(payload);
+			$channel.html('<p>'+payload+'</p>');
+		}
+
+		//Fonction pour lister les users
+		 function displayListUsers(data) {
+		 	$channel.html('<p>'+data+'</p>');
+		 }
+
+		// Quand il publie un message sur son chat
+		$('#send').submit(function (e) {
+			var text = $.trim($message.val());
+			var pattern = /list/i;
+			var boulou = /users/;
+			if (!text.length) return false;
+			if (pattern.test(text)){
+
+				socket.emit('listRooms', {filter: "*"});
+
+			}
+			if(boulou.test(text)){
+				//alert('boulou');
+				socket.emit('listUsers', {filter: "*"});
+			}
+			 else {				
+				var hash = {
+					username: username,
+					text: text
+				};
+
+				$message.val('').focus();
+				socket.emit('message', hash);
+				newMessage(hash)
+				return false;
+			}
+
+			e.preventDefault();
+
+		});
+		//Pour quitter le chat
+		$('.close').click(function () {
+			socket.disconnect();
+			$chat.hide();
+			$title.html('Multi chats');
+			$messages.html('');
+			$message.val('');
+			$('#choixChat').show();
+		});
+	});
+	</script>
+</body>
+</html>

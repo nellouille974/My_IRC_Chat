@@ -1,0 +1,34 @@
+<html>
+<head>
+	<title></title>
+</head>
+<body>
+	<script type="text/javascript" src="/socket.io/socket.io.js"></script>
+	<script type="text/javascript">
+
+	var s = io.connect('/');
+	var sid = null;
+	var isConnect = false;
+
+	s.on('connect', function () {
+		console.log("on est connecté " + s);
+		isConnect = true;
+
+		s.on('system_id', function (payload) {
+			sid = payload.id;
+			console.log(sid);
+		});
+	});
+
+	document.addEventListener('click', function () {
+		if (isConnect) {
+			s.emit('message', {
+				title: "super message",
+				body: "wow super trop bien"
+			})
+		}
+	});
+
+	</script>
+</body>
+</html>
